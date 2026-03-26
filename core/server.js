@@ -29,6 +29,7 @@ const { v4: uuidv4 } = require('uuid');
 const profileFactory = require('./identity/profileFactory');
 const sessionStore   = require('./identity/sessionStore');
 const localProxy     = require('./proxy/localProxy');
+const routingBrain   = require('./routing/routingBrain');
 
 const app  = express();
 const PORT = process.env.CORE_PORT || 3001;
@@ -48,23 +49,9 @@ const MOCK_NODES = [
   { id: 'node-eu-3', role: 'exit',   region: 'EU-South', ip: '5.180.64.88',   latencyMs: 42,  trustScore: 0.87, uptime: 98.9, flagged: false }
 ];
 
-// ─── Phase 1/4 Stubs ──────────────────────────────────────────
+// ─── Phase 4 Logic ──────────────────────────────────────────
 function generateCircuit() {
-  const guards  = MOCK_NODES.filter(n => n.role === 'guard');
-  const relays  = MOCK_NODES.filter(n => n.role === 'relay');
-  const exits   = MOCK_NODES.filter(n => n.role === 'exit');
-
-  const entry = guards[Math.floor(Math.random() * guards.length)];
-  const relay = relays[Math.floor(Math.random() * relays.length)];
-  const exit  = exits[Math.floor(Math.random() * exits.length)];
-
-  return {
-    circuitId: uuidv4(),
-    entry, relay, exit,
-    totalLatencyMs: entry.latencyMs + relay.latencyMs + exit.latencyMs,
-    createdAt: Date.now(),
-    expiresAt: Date.now() + 600000 // 10 minutes
-  };
+  return routingBrain.generateCircuit(MOCK_NODES);
 }
 
 // ─── API Routes ───────────────────────────────────────────────
@@ -72,15 +59,15 @@ function generateCircuit() {
 app.get('/api/status', (req, res) => {
   res.json({
     status:         'ok',
-    version:        '1.0.0-phase3',
+    version:        '1.0.0-phase4',
     timestamp:      Date.now(),
     uptime:         process.uptime(),
     activeSessions: sessionStore.getStats().activeSessions,
     nodeCount:      MOCK_NODES.filter(n => !n.flagged).length,
-    phase:          3,
+    phase:          4,
     features: {
       encryption:  true,
-      realRouting: false,
+      realRouting: true, // Phase 4 ACTIVE
       phantom:     false
     }
   });
