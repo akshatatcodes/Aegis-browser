@@ -13,9 +13,10 @@ const dummyInjector = require('./dummyInjector');
 
 class MixNode {
   constructor() {
+    this.threshold = 5;
     this.batchManager = new BatchManager(this.flush.bind(this), {
-      batchSize: 5,   // Small for local testing, would be 10+ in production
-      flushInterval: 500
+      batchSize: this.threshold,
+      flushInterval: 200 // Reduced from 500ms to prevent browser timeouts
     });
   }
 
@@ -30,13 +31,17 @@ class MixNode {
    * Shuffles and Flushes a batch.
    */
   flush(batch) {
+    const originalCount = batch.length;
+    
     // 1. Threshold Check: If batch is too small, inject dummies
-    const threshold = 5;
-    while (batch.length < threshold) {
+    while (batch.length < this.threshold) {
       batch.push(dummyInjector.generateDummy());
     }
 
-    console.log(`[MixNode] 🌪️  Mixing batch of ${batch.length} (included ${batch.length - (batch.length - (threshold - batch.length))} dummies)`);
+    const dummyCount = batch.length - originalCount;
+    if (dummyCount > 0 || originalCount > 0) {
+      console.log(`[MixNode] 🌪️  Mixing batch of ${batch.length} (included ${dummyCount} dummies)`);
+    }
 
     // 2. Cryptographic Shuffle (Fisher-Yates)
     for (let i = batch.length - 1; i > 0; i--) {
