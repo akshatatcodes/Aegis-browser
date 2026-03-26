@@ -26,7 +26,8 @@ class RoutingBrain {
       entry: path.entry,
       relay: path.relay,
       exit:  path.exit,
-      totalLatencyMs: path.entry.latencyMs + path.relay.latencyMs + path.exit.latencyMs,
+      mixNode: { id: 'mix-01', region: path.entry.region, strategy: 'timed', status: 'active' },
+      totalLatencyMs: path.entry.latencyMs + path.relay.latencyMs + path.exit.latencyMs + 300, // +300ms mix latency
       createdAt: Date.now(),
       expiresAt: Date.now() + this.CIRCUIT_TTL_MS
     };

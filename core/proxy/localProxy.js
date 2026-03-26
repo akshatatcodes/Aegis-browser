@@ -12,6 +12,7 @@ const net = require('net');
 const onionCipher = require('../encryption/onionCipher');
 const sessionStore = require('../identity/sessionStore');
 const phantomLauncher = require('../phantom/phantomLauncher');
+const mixNode = require('../mixnode/mixNode');
 
 class LocalProxy {
   constructor(port = 8118) {
@@ -59,6 +60,17 @@ class LocalProxy {
 
   _processRequest(socket, chunk) {
     if (chunk[0] !== 0x05 || chunk[1] !== 0x01) return; // Only CONNECT supported
+
+    // Node List for Phantoms
+    const MOCK_NODES = [
+      { id: 'node-eu-1', role: 'guard',  region: 'EU-West',  ip: '185.23.44.12',  latencyMs: 28,  trustScore: 0.94, uptime: 99.1, flagged: false },
+      { id: 'node-us-1', role: 'guard',  region: 'US-East',  ip: '104.21.33.91',  latencyMs: 52,  trustScore: 0.91, uptime: 98.7, flagged: false },
+      { id: 'node-eu-2', role: 'relay',  region: 'EU-North', ip: '46.182.21.9',   latencyMs: 35,  trustScore: 0.88, uptime: 99.5, flagged: false },
+      { id: 'node-ap-1', role: 'relay',  region: 'AP-South', ip: '139.59.1.42',   latencyMs: 112, trustScore: 0.85, uptime: 97.2, flagged: false },
+      { id: 'node-sa-1', role: 'relay',  region: 'SA-East',  ip: '177.71.128.5',  latencyMs: 145, trustScore: 0.82, uptime: 96.8, flagged: false },
+      { id: 'node-ap-2', role: 'exit',   region: 'AP-East',  ip: '103.252.116.1', latencyMs: 88,  trustScore: 0.90, uptime: 98.3, flagged: false },
+      { id: 'node-eu-3', role: 'exit',   region: 'EU-South', ip: '5.180.64.88',   latencyMs: 42,  trustScore: 0.87, uptime: 98.9, flagged: false }
+    ];
 
     let offset = 4;
     let dstAddr = '';
@@ -110,9 +122,14 @@ class LocalProxy {
    * while logging the phantom clone activity for obfuscation.
    */
   _pipeWithEncryption(local, remote) {
-    // Phase 5 Stability: Use direct piping to ensure maximum compatibility 
-    // with SSL/TLS handshakes while we are in the research/simulation phase.
-    
+    // Phase 6: Mix Node Simulation
+    // Whenever data flows, we "sample" a packet for the Mix Layer
+    local.on('data', (chunk) => {
+      if (chunk.length > 10) {
+        mixNode.receive(chunk.slice(0, 100)); // Sample some data to the mix batch
+      }
+    });
+
     local.pipe(remote);
     remote.pipe(local);
 
