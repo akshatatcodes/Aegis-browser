@@ -90,7 +90,11 @@ async function createWindow() {
       webviewTag: true,
 
       // Sandbox the renderer process
-      sandbox: false // Keep false to allow webview usage
+      sandbox: false, // Keep false to allow webview usage
+
+      // PROTO-FIX: Disable webSecurity to allow Babel to load local App.jsx
+      // In production (Phase 2+), we'll bundle everything and re-enable this.
+      webSecurity: false
     }
   });
 
@@ -107,8 +111,14 @@ async function createWindow() {
     mainWindow = null;
   });
 
+  // Log any errors that happen in the renderer
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error(`[Aegis Main] Failed to load window: ${errorCode} - ${errorDescription}`);
+  });
+
   // Inform renderer when window is ready
   mainWindow.webContents.on('did-finish-load', () => {
+    console.log('[Aegis Main] Renderer window loaded.');
     mainWindow.webContents.send('main:ready', {
       proxyPort: PROXY_PORT,
       coreApi: CORE_API

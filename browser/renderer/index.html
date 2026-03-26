@@ -62,9 +62,426 @@
     we use a simple inline-script approach via CDN React (dev only).
     In production, run: npm run build → points to renderer/dist/bundle.js
   -->
-  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script type="text/babel" src="./App.jsx" data-type="module"></script>
+  <!-- Load React from local node_modules (works offline in Electron) -->
+  <script src="../node_modules/react/umd/react.development.js"></script>
+  <script src="../node_modules/react-dom/umd/react-dom.development.js"></script>
+  <script src="../node_modules/@babel/standalone/babel.min.js"></script>
+
+  <script>
+    console.log('[Aegis Renderer] All script dependencies started loading.');
+    window.addEventListener('DOMContentLoaded', () => {
+      console.log('[Aegis Renderer] DOM content loaded.');
+    });
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+      console.error('[Aegis Renderer Error]', msg, 'at', url, ':', lineNo);
+      return false;
+    };
+  </script>
+  <script type="text/babel">
+    /**
+     * ============================================================
+     * AEGIS BROWSER — App.jsx (Root React Component)
+     * ============================================================
+     */
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    function generateId() {
+      return 'tab_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now();
+    }
+
+    function createTab(url = '') {
+      return {
+        id:         generateId(),
+        url:        url || 'aegis://new',
+        displayUrl: url || '',
+        title:      'New Tab',
+        loading:    false,
+        identity:   null,
+        circuit:    null,
+        webviewRef: React.createRef()
+      };
+    }
+
+    function App() {
+      const [tabs,           setTabs]           = useState(() => [createTab()]);
+      const [activeTabId,    setActiveTabId]    = useState(() => null);
+      const [backendStatus,  setBackendStatus]  = useState('connecting');
+      const [dashboardOpen,  setDashboardOpen]  = useState(true);
+      const urlBarRef = useRef(null);
+
+      useEffect(() => {
+        if (tabs.length > 0 && !activeTabId) {
+          setActiveTabId(tabs[0].id);
+        }
+      }, []);
+
+      useEffect(() => {
+        async function checkBackend() {
+          if (!window.aegisAPI) {
+            setBackendStatus('offline');
+            return;
+          }
+          try {
+            const res = await window.aegisAPI.getStatus();
+            setBackendStatus(res.success ? 'online' : 'offline');
+          } catch {
+            setBackendStatus('offline');
+          }
+        }
+        checkBackend();
+        const interval = setInterval(checkBackend, 30000);
+        return () => clearInterval(interval);
+      }, []);
+
+      useEffect(() => {
+        if (!activeTabId || backendStatus !== 'online') return;
+        const tab = tabs.find(t => t.id === activeTabId);
+        if (!tab || tab.identity) return;
+
+        async function loadTabData() {
+          try {
+            const [idRes, circuitRes] = await Promise.all([
+              window.aegisAPI.getIdentity(activeTabId),
+              window.aegisAPI.getCircuit(activeTabId)
+            ]);
+            const identity = idRes.success ? idRes.data : null;
+            const circuit  = circuitRes.success ? circuitRes.data : null;
+            setTabs(prev => prev.map(t =>
+              t.id === activeTabId ? { ...t, identity, circuit } : t
+            ));
+            if (identity && tab.webviewRef?.current) {
+              applyIdentityToWebview(tab.webviewRef.current, identity);
+            }
+          } catch (err) {
+            console.error('[Aegis App] Failed to load tab data:', err);
+          }
+        }
+        loadTabData();
+      }, [activeTabId, backendStatus]);
+
+      const applyIdentityToWebview = useCallback((webviewEl, identity) => {
+        if (!webviewEl) return;
+        try {
+          webviewEl.executeJavaScript(
+            `if (window.__aegisApplyIdentity) window.__aegisApplyIdentity(${JSON.stringify(identity)})`
+          );
+        } catch (e) {}
+      }, []);
+
+      const addTab = useCallback((url = '') => {
+        const newTab = createTab(url);
+        setTabs(prev => [...prev, newTab]);
+        setActiveTabId(newTab.id);
+      }, []);
+
+      const closeTab = useCallback((tabId) => {
+        setTabs(prev => {
+          const remaining = prev.filter(t => t.id !== tabId);
+          if (remaining.length === 0) {
+            const fresh = createTab();
+            setActiveTabId(fresh.id);
+            return [fresh];
+          }
+          setActiveTabId(active => {
+            if (active === tabId) return remaining[remaining.length - 1].id;
+            return active;
+          });
+          return remaining;
+        });
+      }, []);
+
+      const switchTab = useCallback((tabId) => {
+        setActiveTabId(tabId);
+        const tab = tabs.find(t => t.id === tabId);
+        if (tab && window.aegisAPI) {
+          window.aegisAPI.setTitle(tab.title || 'New Tab');
+        }
+      }, [tabs]);
+
+      const updateTabUrl = useCallback((tabId, url) => {
+        setTabs(prev => prev.map(t => t.id === tabId ? { ...t, url, loading: true } : t));
+      }, []);
+
+      const updateTabTitle = useCallback((tabId, title) => {
+        setTabs(prev => prev.map(t => t.id === tabId ? { ...t, title } : t));
+      }, []);
+
+      const updateTabLoading = useCallback((tabId, loading) => {
+        setTabs(prev => prev.map(t => t.id === tabId ? { ...t, loading } : t));
+      }, []);
+
+      const navigateTo = useCallback((url) => {
+        if (!activeTabId) return;
+        let fullUrl = url.trim();
+        if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://') && !fullUrl.startsWith('aegis://')) {
+          if (fullUrl.includes('.') && !fullUrl.includes(' ')) {
+            fullUrl = `https://${fullUrl}`;
+          } else {
+            fullUrl = `https://www.google.com/search?q=${encodeURIComponent(fullUrl)}`;
+          }
+        }
+        const tab = tabs.find(t => t.id === activeTabId);
+        if (tab?.webviewRef?.current) {
+          tab.webviewRef.current.loadURL(fullUrl);
+        }
+        updateTabUrl(activeTabId, fullUrl);
+      }, [activeTabId, tabs, updateTabUrl]);
+
+      const rotateIdentity = useCallback(async (tabId) => {
+        if (!window.aegisAPI) return;
+        try {
+          const res = await window.aegisAPI.rotateIdentity(tabId);
+          if (res.success) {
+            setTabs(prev => prev.map(t =>
+              t.id === tabId ? { ...t, identity: res.data } : t
+            ));
+            const tab = tabs.find(t => t.id === tabId);
+            if (tab?.webviewRef?.current) {
+              applyIdentityToWebview(tab.webviewRef.current, res.data);
+            }
+          }
+        } catch (err) {
+          console.error('[Aegis App] rotateIdentity failed:', err);
+        }
+      }, [tabs, applyIdentityToWebview]);
+
+      const rotateRoute = useCallback(async (tabId) => {
+        if (!window.aegisAPI) return;
+        try {
+          const res = await window.aegisAPI.rotateRoute(tabId);
+          if (res.success) {
+            setTabs(prev => prev.map(t =>
+              t.id === tabId ? { ...t, circuit: res.data } : t
+            ));
+          }
+        } catch (err) {
+          console.error('[Aegis App] rotateRoute failed:', err);
+        }
+      }, [tabs]);
+
+      const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0];
+
+      return (
+        <div style={styles.appShell}>
+          <div style={styles.topBar}>
+            <TabBar
+              tabs={tabs}
+              activeTabId={activeTabId}
+              onNewTab={() => addTab()}
+              onCloseTab={closeTab}
+              onSwitchTab={switchTab}
+              backendStatus={backendStatus}
+              onToggleDashboard={() => setDashboardOpen(v => !v)}
+              dashboardOpen={dashboardOpen}
+            />
+            <UrlBar
+              activeTab={activeTab}
+              onNavigate={navigateTo}
+              urlBarRef={urlBarRef}
+            />
+          </div>
+          <div style={styles.contentArea}>
+            <div style={styles.webviewArea}>
+              {tabs.map(tab => (
+                <WebviewContainer
+                  key={tab.id}
+                  tab={tab}
+                  isActive={tab.id === activeTabId}
+                  onTitleChange={(title) => updateTabTitle(tab.id, title)}
+                  onLoadStart={() => updateTabLoading(tab.id, true)}
+                  onLoadStop={() => updateTabLoading(tab.id, false)}
+                  onUrlChange={(url) => updateTabUrl(tab.id, url)}
+                />
+              ))}
+            </div>
+            {dashboardOpen && (
+              <Dashboard
+                activeTab={activeTab}
+                allTabs={tabs}
+                backendStatus={backendStatus}
+                onRotateIdentity={rotateIdentity}
+                onRotateRoute={rotateRoute}
+              />
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    const styles = {
+      appShell: { display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh', background: 'var(--bg-primary)', overflow: 'hidden' },
+      topBar: { display: 'flex', flexDirection: 'column', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', flexShrink: 0, WebkitAppRegion: 'drag' },
+      contentArea: { display: 'flex', flex: 1, overflow: 'hidden' },
+      webviewArea: { flex: 1, position: 'relative', overflow: 'hidden' }
+    };
+
+    function TabBar({ tabs, activeTabId, onNewTab, onCloseTab, onSwitchTab, backendStatus, onToggleDashboard, dashboardOpen }) {
+      return (
+        <div style={tabBarStyles.bar}>
+          <div style={tabBarStyles.controls}>
+            <div style={{...tabBarStyles.dot, background:'#ff5f57'}}/>
+            <div style={{...tabBarStyles.dot, background:'#febc2e'}}/>
+            <div style={{...tabBarStyles.dot, background:'#28c840'}}/>
+          </div>
+          <div style={tabBarStyles.tabs}>
+            {tabs.map(tab => (
+              <TabItem
+                key={tab.id}
+                tab={tab}
+                isActive={tab.id === activeTabId}
+                onSwitch={() => onSwitchTab(tab.id)}
+                onClose={(e) => { e.stopPropagation(); onCloseTab(tab.id); }}
+              />
+            ))}
+          </div>
+          <button style={tabBarStyles.newTabBtn} onClick={onNewTab}>＋</button>
+          <div style={{flex:1}} />
+          <div style={tabBarStyles.statusArea}>
+            <div style={{...tabBarStyles.statusDot, background: {connecting:'#f59e0b', online:'#22c55e', offline:'#ef4444'}[backendStatus]}} />
+            <span style={{fontSize:'10px', color:'var(--text-muted)'}}>{backendStatus.toUpperCase()}</span>
+          </div>
+          <button style={tabBarStyles.dashBtn} onClick={onToggleDashboard}>{dashboardOpen ? '◀' : '▶'}</button>
+        </div>
+      );
+    }
+
+    function TabItem({ tab, isActive, onSwitch, onClose }) {
+      return (
+        <div style={{...tabBarStyles.tab, ...(isActive ? tabBarStyles.tabActive : {})}} onClick={onSwitch}>
+          <div style={tabBarStyles.faviconDot} />
+          <span style={tabBarStyles.tabTitle}>{tab.title || 'New Tab'}</span>
+          {tab.loading && <span style={tabBarStyles.loadingDot}>●</span>}
+          <button style={tabBarStyles.closeBtn} onClick={onClose}>✕</button>
+        </div>
+      );
+    }
+
+    const tabBarStyles = {
+      bar: { display:'flex', alignItems:'center', height:'var(--tab-height)', padding:'0 8px', gap:'4px', WebkitAppRegion:'drag' },
+      controls: { display:'flex', gap:'6px', marginRight:'12px', WebkitAppRegion:'no-drag' },
+      dot: { width:12, height:12, borderRadius:'50%' },
+      tabs: { display:'flex', gap:'2px', flex:1, overflow:'hidden', alignItems:'center', WebkitAppRegion:'no-drag' },
+      tab: { display:'flex', alignItems:'center', gap:'6px', padding:'6px 12px', borderRadius:'var(--radius-sm) var(--radius-sm) 0 0', background:'var(--bg-primary)', color:'var(--text-secondary)', fontSize:'12px', cursor:'pointer', maxWidth:'180px', transition:'all 0.15s ease', WebkitAppRegion:'no-drag' },
+      tabActive: { background:'var(--bg-elevated)', color:'var(--text-primary)', borderBottom:'2px solid var(--accent)' },
+      tabTitle: { flex:1, overflow:'hidden', textOverflow:'ellipsis' },
+      faviconDot: { width:8, height:8, borderRadius:'50%', background:'var(--accent)', flexShrink:0 },
+      loadingDot: { color:'var(--accent)', fontSize:'8px' },
+      closeBtn: { background:'transparent', border:'none', color:'var(--text-muted)', cursor:'pointer', fontSize:'10px' },
+      newTabBtn: { background:'transparent', border:'none', color:'var(--text-secondary)', cursor:'pointer', padding:'4px 8px', WebkitAppRegion:'no-drag' },
+      statusArea: { display:'flex', alignItems:'center', gap:'6px', marginRight:'8px', WebkitAppRegion:'no-drag' },
+      statusDot: { width:7, height:7, borderRadius:'50%' },
+      dashBtn: { background:'transparent', border:'none', color:'var(--text-secondary)', cursor:'pointer', padding:'4px 8px', WebkitAppRegion:'no-drag' }
+    };
+
+    function UrlBar({ activeTab, onNavigate, urlBarRef }) {
+      const [inputValue, setInputValue] = useState('');
+      useEffect(() => { setInputValue(activeTab?.url === 'aegis://new' ? '' : activeTab?.url || ''); }, [activeTab?.id, activeTab?.url]);
+      return (
+        <form onSubmit={(e) => { e.preventDefault(); onNavigate(inputValue); }} style={urlBarStyles.form}>
+          <span style={urlBarStyles.icon}>🔒</span>
+          <input ref={urlBarRef} type="text" value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="Search or type URL" style={urlBarStyles.input} />
+          <span style={urlBarStyles.aegisTag}>🛡️ AEGIS</span>
+        </form>
+      );
+    }
+
+    const urlBarStyles = {
+      form: { display:'flex', alignItems:'center', gap:'8px', padding:'6px 12px', background:'var(--bg-elevated)', borderRadius:'var(--radius-md)', margin:'4px 12px', border:'1px solid var(--border)', WebkitAppRegion:'no-drag' },
+      icon: { fontSize:'12px' },
+      input: { flex:1, background:'transparent', border:'none', outline:'none', color:'var(--text-primary)', fontSize:'13px' },
+      aegisTag: { fontSize:'10px', color:'var(--accent)', background:'var(--accent-dim)', padding:'2px 6px', borderRadius:'10px', fontWeight:600 }
+    };
+
+    function WebviewContainer({ tab, isActive, onTitleChange, onLoadStart, onLoadStop, onUrlChange }) {
+      const webviewRef = tab.webviewRef;
+      useEffect(() => {
+        const wv = webviewRef?.current;
+        if (!wv) return;
+        const onTitle = (e) => onTitleChange(e.title);
+        const onStart = () => onLoadStart();
+        const onStop  = () => onLoadStop();
+        const onNav   = (e) => onUrlChange(e.url);
+        wv.addEventListener('page-title-updated', onTitle);
+        wv.addEventListener('did-start-loading', onStart);
+        wv.addEventListener('did-stop-loading', onStop);
+        wv.addEventListener('did-navigate', onNav);
+        return () => {
+          wv.removeEventListener('page-title-updated', onTitle);
+          wv.removeEventListener('did-start-loading', onStart);
+          wv.removeEventListener('did-stop-loading', onStop);
+          wv.removeEventListener('did-navigate', onNav);
+        };
+      }, [webviewRef]);
+      return (
+        <div style={{ position:'absolute', inset:0, display: isActive ? 'block' : 'none' }}>
+          {tab.url === 'aegis://new' ? <NewTabPage /> : <webview ref={webviewRef} src={tab.url} style={{ width:'100%', height:'100%' }} preload={`file://${window.location.pathname.replace('index.html','preload.js')}`} partition="persist:aegis" />}
+        </div>
+      );
+    }
+
+    function NewTabPage() {
+      return (
+        <div style={ntpStyles.page}>
+          <div style={ntpStyles.logo}>🛡️</div>
+          <h1 style={ntpStyles.title}>Aegis Browser</h1>
+          <p style={ntpStyles.subtitle}>Onion routing active · Fingerprint spoofed · WebRTC blocked</p>
+          <div style={ntpStyles.statusGrid}>
+            <StatusBadge icon="🔒" label="Routing" value="Isolated" color="success" />
+            <StatusBadge icon="👤" label="Identity" value="Spoofing" color="success" />
+            <StatusBadge icon="📡" label="WebRTC" value="Blocked" color="danger" />
+          </div>
+        </div>
+      );
+    }
+
+    function StatusBadge({ icon, label, value, color }) {
+      return (
+        <div style={ntpStyles.badge}>
+          <span>{icon}</span>
+          <div><div style={{fontSize:'10px', color:'var(--text-muted)'}}>{label}</div><div style={{fontSize:'12px', fontWeight:600}}>{value}</div></div>
+        </div>
+      );
+    }
+
+    const ntpStyles = {
+      page: { display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', gap:'20px' },
+      logo: { fontSize:'64px' },
+      title: { fontSize:'32px', fontWeight:700 },
+      subtitle: { color:'var(--text-secondary)' },
+      statusGrid: { display:'flex', gap:'10px' },
+      badge: { display:'flex', alignItems:'center', gap:'10px', padding:'10px 15px', background:'var(--bg-elevated)', borderRadius:'var(--radius-md)' }
+    };
+
+    function Dashboard({ activeTab, allTabs, backendStatus, onRotateIdentity, onRotateRoute }) {
+      const { identity, circuit } = activeTab || {};
+      return (
+        <div style={dashStyles.panel}>
+          <div style={dashStyles.header}><span>🛡️ Dashboard</span></div>
+          <Section title="👤 Identity">
+            {identity ? <div style={{fontSize:'11px'}}>UA: {identity.userAgent.slice(0,30)}...<br/>TZ: {identity.timezone}</div> : 'Loading...'}
+          </Section>
+          <Section title="🌐 Circuit">
+            {circuit ? <div style={{fontSize:'11px'}}>{circuit.entry.region} → {circuit.relay.region} → {circuit.exit.region}</div> : 'Loading...'}
+          </Section>
+          <Section title="⚙️ Controls">
+            <button onClick={() => onRotateIdentity(activeTab.id)}>Gen Identity</button>
+            <button onClick={() => onRotateRoute(activeTab.id)}>New Route</button>
+          </Section>
+        </div>
+      );
+    }
+
+    function Section({ title, children }) {
+      return <div style={{padding:'10px', borderBottom:'1px solid var(--border)'}}><div style={{fontSize:'10px', fontWeight:600, color:'var(--text-muted)', marginBottom:'5px'}}>{title}</div>{children}</div>;
+    }
+
+    const dashStyles = {
+      panel: { width:'var(--dash-width)', background:'var(--bg-secondary)', borderLeft:'1px solid var(--border)', overflowY:'auto' },
+      header: { padding:'15px', fontWeight:700, borderBottom:'1px solid var(--border)' }
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
 </body>
 </html>
