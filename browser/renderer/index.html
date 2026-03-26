@@ -1,44 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src http://localhost:3001;" />
+    content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src http://localhost:3001;" />
   <title>Aegis Browser</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
   <style>
     /* ── Global Reset & Base ── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg-primary:    #0d0d0f;
-      --bg-secondary:  #13131a;
-      --bg-elevated:   #1a1a24;
-      --bg-hover:      #1f1f2e;
-      --accent:        #6c63ff;
-      --accent-glow:   rgba(108, 99, 255, 0.3);
-      --accent-dim:    rgba(108, 99, 255, 0.15);
-      --success:       #22c55e;
-      --warning:       #f59e0b;
-      --danger:        #ef4444;
-      --text-primary:  #e2e2f0;
-      --text-secondary:#8888aa;
-      --text-muted:    #55556a;
-      --border:        rgba(255,255,255,0.06);
-      --border-accent: rgba(108,99,255,0.3);
-      --radius-sm:     6px;
-      --radius-md:     10px;
-      --radius-lg:     16px;
-      --font-ui:       'Inter', system-ui, sans-serif;
-      --font-mono:     'JetBrains Mono', 'Courier New', monospace;
-      --tab-height:    42px;
-      --dash-width:    320px;
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
 
-    html, body, #root {
-      width: 100%; height: 100%;
+    :root {
+      --bg-primary: #0d0d0f;
+      --bg-secondary: #13131a;
+      --bg-elevated: #1a1a24;
+      --bg-hover: #1f1f2e;
+      --accent: #6c63ff;
+      --accent-glow: rgba(108, 99, 255, 0.3);
+      --accent-dim: rgba(108, 99, 255, 0.15);
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --text-primary: #e2e2f0;
+      --text-secondary: #8888aa;
+      --text-muted: #55556a;
+      --border: rgba(255, 255, 255, 0.06);
+      --border-accent: rgba(108, 99, 255, 0.3);
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --font-ui: 'Inter', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+      --tab-height: 42px;
+      --dash-width: 320px;
+    }
+
+    html,
+    body,
+    #root {
+      width: 100%;
+      height: 100%;
       overflow: hidden;
       background: var(--bg-primary);
       color: var(--text-primary);
@@ -48,12 +60,25 @@
     }
 
     /* Scrollbar */
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+    ::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--text-muted);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-secondary);
+    }
   </style>
 </head>
+
 <body>
   <div id="root"></div>
   <!--
@@ -72,7 +97,7 @@
     window.addEventListener('DOMContentLoaded', () => {
       console.log('[Aegis Renderer] DOM content loaded.');
     });
-    window.onerror = function(msg, url, lineNo, columnNo, error) {
+    window.onerror = function (msg, url, lineNo, columnNo, error) {
       console.error('[Aegis Renderer Error]', msg, 'at', url, ':', lineNo);
       return false;
     };
@@ -91,22 +116,22 @@
 
     function createTab(url = '') {
       return {
-        id:         generateId(),
-        url:        url || 'aegis://new',
+        id: generateId(),
+        url: url || 'aegis://new',
         displayUrl: url || '',
-        title:      'New Tab',
-        loading:    false,
-        identity:   null,
-        circuit:    null,
+        title: 'New Tab',
+        loading: false,
+        identity: null,
+        circuit: null,
         webviewRef: React.createRef()
       };
     }
 
     function App() {
-      const [tabs,           setTabs]           = useState(() => [createTab()]);
-      const [activeTabId,    setActiveTabId]    = useState(() => null);
-      const [backendStatus,  setBackendStatus]  = useState('connecting');
-      const [dashboardOpen,  setDashboardOpen]  = useState(true);
+      const [tabs, setTabs] = useState(() => [createTab()]);
+      const [activeTabId, setActiveTabId] = useState(() => null);
+      const [backendStatus, setBackendStatus] = useState('connecting');
+      const [dashboardOpen, setDashboardOpen] = useState(true);
       const urlBarRef = useRef(null);
 
       useEffect(() => {
@@ -145,7 +170,7 @@
               window.aegisAPI.getCircuit(activeTabId)
             ]);
             const identity = idRes.success ? idRes.data : null;
-            const circuit  = circuitRes.success ? circuitRes.data : null;
+            const circuit = circuitRes.success ? circuitRes.data : null;
             setTabs(prev => prev.map(t =>
               t.id === activeTabId ? { ...t, identity, circuit } : t
             ));
@@ -165,7 +190,7 @@
           webviewEl.executeJavaScript(
             `if (window.__aegisApplyIdentity) window.__aegisApplyIdentity(${JSON.stringify(identity)})`
           );
-        } catch (e) {}
+        } catch (e) { }
       }, []);
 
       const addTab = useCallback((url = '') => {
@@ -319,9 +344,9 @@
       return (
         <div style={tabBarStyles.bar}>
           <div style={tabBarStyles.controls}>
-            <div style={{...tabBarStyles.dot, background:'#ff5f57'}}/>
-            <div style={{...tabBarStyles.dot, background:'#febc2e'}}/>
-            <div style={{...tabBarStyles.dot, background:'#28c840'}}/>
+            <div style={{ ...tabBarStyles.dot, background: '#ff5f57' }} />
+            <div style={{ ...tabBarStyles.dot, background: '#febc2e' }} />
+            <div style={{ ...tabBarStyles.dot, background: '#28c840' }} />
           </div>
           <div style={tabBarStyles.tabs}>
             {tabs.map(tab => (
@@ -335,10 +360,10 @@
             ))}
           </div>
           <button style={tabBarStyles.newTabBtn} onClick={onNewTab}>＋</button>
-          <div style={{flex:1}} />
+          <div style={{ flex: 1 }} />
           <div style={tabBarStyles.statusArea}>
-            <div style={{...tabBarStyles.statusDot, background: {connecting:'#f59e0b', online:'#22c55e', offline:'#ef4444'}[backendStatus]}} />
-            <span style={{fontSize:'10px', color:'var(--text-muted)'}}>{backendStatus.toUpperCase()}</span>
+            <div style={{ ...tabBarStyles.statusDot, background: { connecting: '#f59e0b', online: '#22c55e', offline: '#ef4444' }[backendStatus] }} />
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{backendStatus.toUpperCase()}</span>
           </div>
           <button style={tabBarStyles.dashBtn} onClick={onToggleDashboard}>{dashboardOpen ? '◀' : '▶'}</button>
         </div>
@@ -347,7 +372,7 @@
 
     function TabItem({ tab, isActive, onSwitch, onClose }) {
       return (
-        <div style={{...tabBarStyles.tab, ...(isActive ? tabBarStyles.tabActive : {})}} onClick={onSwitch}>
+        <div style={{ ...tabBarStyles.tab, ...(isActive ? tabBarStyles.tabActive : {}) }} onClick={onSwitch}>
           <div style={tabBarStyles.faviconDot} />
           <span style={tabBarStyles.tabTitle}>{tab.title || 'New Tab'}</span>
           {tab.loading && <span style={tabBarStyles.loadingDot}>●</span>}
@@ -357,20 +382,20 @@
     }
 
     const tabBarStyles = {
-      bar: { display:'flex', alignItems:'center', height:'var(--tab-height)', padding:'0 8px', gap:'4px', WebkitAppRegion:'drag' },
-      controls: { display:'flex', gap:'6px', marginRight:'12px', WebkitAppRegion:'no-drag' },
-      dot: { width:12, height:12, borderRadius:'50%' },
-      tabs: { display:'flex', gap:'2px', flex:1, overflow:'hidden', alignItems:'center', WebkitAppRegion:'no-drag' },
-      tab: { display:'flex', alignItems:'center', gap:'6px', padding:'6px 12px', borderRadius:'var(--radius-sm) var(--radius-sm) 0 0', background:'var(--bg-primary)', color:'var(--text-secondary)', fontSize:'12px', cursor:'pointer', maxWidth:'180px', transition:'all 0.15s ease', WebkitAppRegion:'no-drag' },
-      tabActive: { background:'var(--bg-elevated)', color:'var(--text-primary)', borderBottom:'2px solid var(--accent)' },
-      tabTitle: { flex:1, overflow:'hidden', textOverflow:'ellipsis' },
-      faviconDot: { width:8, height:8, borderRadius:'50%', background:'var(--accent)', flexShrink:0 },
-      loadingDot: { color:'var(--accent)', fontSize:'8px' },
-      closeBtn: { background:'transparent', border:'none', color:'var(--text-muted)', cursor:'pointer', fontSize:'10px' },
-      newTabBtn: { background:'transparent', border:'none', color:'var(--text-secondary)', cursor:'pointer', padding:'4px 8px', WebkitAppRegion:'no-drag' },
-      statusArea: { display:'flex', alignItems:'center', gap:'6px', marginRight:'8px', WebkitAppRegion:'no-drag' },
-      statusDot: { width:7, height:7, borderRadius:'50%' },
-      dashBtn: { background:'transparent', border:'none', color:'var(--text-secondary)', cursor:'pointer', padding:'4px 8px', WebkitAppRegion:'no-drag' }
+      bar: { display: 'flex', alignItems: 'center', height: 'var(--tab-height)', padding: '0 8px', gap: '4px', WebkitAppRegion: 'drag' },
+      controls: { display: 'flex', gap: '6px', marginRight: '12px', WebkitAppRegion: 'no-drag' },
+      dot: { width: 12, height: 12, borderRadius: '50%' },
+      tabs: { display: 'flex', gap: '2px', flex: 1, overflow: 'hidden', alignItems: 'center', WebkitAppRegion: 'no-drag' },
+      tab: { display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: 'var(--radius-sm) var(--radius-sm) 0 0', background: 'var(--bg-primary)', color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer', maxWidth: '180px', transition: 'all 0.15s ease', WebkitAppRegion: 'no-drag' },
+      tabActive: { background: 'var(--bg-elevated)', color: 'var(--text-primary)', borderBottom: '2px solid var(--accent)' },
+      tabTitle: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' },
+      faviconDot: { width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 },
+      loadingDot: { color: 'var(--accent)', fontSize: '8px' },
+      closeBtn: { background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '10px' },
+      newTabBtn: { background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px 8px', WebkitAppRegion: 'no-drag' },
+      statusArea: { display: 'flex', alignItems: 'center', gap: '6px', marginRight: '8px', WebkitAppRegion: 'no-drag' },
+      statusDot: { width: 7, height: 7, borderRadius: '50%' },
+      dashBtn: { background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px 8px', WebkitAppRegion: 'no-drag' }
     };
 
     function UrlBar({ activeTab, onNavigate, urlBarRef }) {
@@ -386,10 +411,10 @@
     }
 
     const urlBarStyles = {
-      form: { display:'flex', alignItems:'center', gap:'8px', padding:'6px 12px', background:'var(--bg-elevated)', borderRadius:'var(--radius-md)', margin:'4px 12px', border:'1px solid var(--border)', WebkitAppRegion:'no-drag' },
-      icon: { fontSize:'12px' },
-      input: { flex:1, background:'transparent', border:'none', outline:'none', color:'var(--text-primary)', fontSize:'13px' },
-      aegisTag: { fontSize:'10px', color:'var(--accent)', background:'var(--accent-dim)', padding:'2px 6px', borderRadius:'10px', fontWeight:600 }
+      form: { display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', margin: '4px 12px', border: '1px solid var(--border)', WebkitAppRegion: 'no-drag' },
+      icon: { fontSize: '12px' },
+      input: { flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: '13px' },
+      aegisTag: { fontSize: '10px', color: 'var(--accent)', background: 'var(--accent-dim)', padding: '2px 6px', borderRadius: '10px', fontWeight: 600 }
     };
 
     function WebviewContainer({ tab, isActive, onTitleChange, onLoadStart, onLoadStop, onUrlChange }) {
@@ -399,8 +424,8 @@
         if (!wv) return;
         const onTitle = (e) => onTitleChange(e.title);
         const onStart = () => onLoadStart();
-        const onStop  = () => onLoadStop();
-        const onNav   = (e) => onUrlChange(e.url);
+        const onStop = () => onLoadStop();
+        const onNav = (e) => onUrlChange(e.url);
         wv.addEventListener('page-title-updated', onTitle);
         wv.addEventListener('did-start-loading', onStart);
         wv.addEventListener('did-stop-loading', onStop);
@@ -413,8 +438,8 @@
         };
       }, [webviewRef]);
       return (
-        <div style={{ position:'absolute', inset:0, display: isActive ? 'block' : 'none' }}>
-          {tab.url === 'aegis://new' ? <NewTabPage /> : <webview ref={webviewRef} src={tab.url} style={{ width:'100%', height:'100%' }} preload={`file://${window.location.pathname.replace('index.html','preload.js')}`} partition="persist:aegis" />}
+        <div style={{ position: 'absolute', inset: 0, display: isActive ? 'block' : 'none' }}>
+          {tab.url === 'aegis://new' ? <NewTabPage /> : <webview ref={webviewRef} src={tab.url} style={{ width: '100%', height: '100%' }} preload={`file://${window.location.pathname.replace('index.html', 'preload.js')}`} partition="persist:aegis" />}
         </div>
       );
     }
@@ -438,18 +463,18 @@
       return (
         <div style={ntpStyles.badge}>
           <span>{icon}</span>
-          <div><div style={{fontSize:'10px', color:'var(--text-muted)'}}>{label}</div><div style={{fontSize:'12px', fontWeight:600}}>{value}</div></div>
+          <div><div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{label}</div><div style={{ fontSize: '12px', fontWeight: 600 }}>{value}</div></div>
         </div>
       );
     }
 
     const ntpStyles = {
-      page: { display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', gap:'20px' },
-      logo: { fontSize:'64px' },
-      title: { fontSize:'32px', fontWeight:700 },
-      subtitle: { color:'var(--text-secondary)' },
-      statusGrid: { display:'flex', gap:'10px' },
-      badge: { display:'flex', alignItems:'center', gap:'10px', padding:'10px 15px', background:'var(--bg-elevated)', borderRadius:'var(--radius-md)' }
+      page: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '20px' },
+      logo: { fontSize: '64px' },
+      title: { fontSize: '32px', fontWeight: 700 },
+      subtitle: { color: 'var(--text-secondary)' },
+      statusGrid: { display: 'flex', gap: '10px' },
+      badge: { display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 15px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)' }
     };
 
     function Dashboard({ activeTab, allTabs, backendStatus, onRotateIdentity, onRotateRoute }) {
@@ -458,10 +483,10 @@
         <div style={dashStyles.panel}>
           <div style={dashStyles.header}><span>🛡️ Dashboard</span></div>
           <Section title="👤 Identity">
-            {identity ? <div style={{fontSize:'11px'}}>UA: {identity.userAgent.slice(0,30)}...<br/>TZ: {identity.timezone}</div> : 'Loading...'}
+            {identity ? <div style={{ fontSize: '11px' }}>UA: {identity.userAgent.slice(0, 30)}...<br />TZ: {identity.timezone}</div> : 'Loading...'}
           </Section>
           <Section title="🌐 Circuit">
-            {circuit ? <div style={{fontSize:'11px'}}>{circuit.entry.region} → {circuit.relay.region} → {circuit.exit.region}</div> : 'Loading...'}
+            {circuit ? <div style={{ fontSize: '11px' }}>{circuit.entry.region} → {circuit.relay.region} → {circuit.exit.region}</div> : 'Loading...'}
           </Section>
           <Section title="⚙️ Controls">
             <button onClick={() => onRotateIdentity(activeTab.id)}>Gen Identity</button>
@@ -472,16 +497,17 @@
     }
 
     function Section({ title, children }) {
-      return <div style={{padding:'10px', borderBottom:'1px solid var(--border)'}}><div style={{fontSize:'10px', fontWeight:600, color:'var(--text-muted)', marginBottom:'5px'}}>{title}</div>{children}</div>;
+      return <div style={{ padding: '10px', borderBottom: '1px solid var(--border)' }}><div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '5px' }}>{title}</div>{children}</div>;
     }
 
     const dashStyles = {
-      panel: { width:'var(--dash-width)', background:'var(--bg-secondary)', borderLeft:'1px solid var(--border)', overflowY:'auto' },
-      header: { padding:'15px', fontWeight:700, borderBottom:'1px solid var(--border)' }
+      panel: { width: 'var(--dash-width)', background: 'var(--bg-secondary)', borderLeft: '1px solid var(--border)', overflowY: 'auto' },
+      header: { padding: '15px', fontWeight: 700, borderBottom: '1px solid var(--border)' }
     };
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
   </script>
 </body>
+
 </html>
