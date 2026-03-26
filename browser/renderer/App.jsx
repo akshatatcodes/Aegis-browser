@@ -208,6 +208,24 @@ function App() {
     updateTabUrl(activeTabId, fullUrl);
   }, [activeTabId, tabs, updateTabUrl]);
 
+  const goBack = useCallback(() => {
+    if (activeTab?.webviewRef?.current && activeTab.webviewRef.current.canGoBack()) {
+      activeTab.webviewRef.current.goBack();
+    }
+  }, [activeTab]);
+
+  const goForward = useCallback(() => {
+    if (activeTab?.webviewRef?.current && activeTab.webviewRef.current.canGoForward()) {
+      activeTab.webviewRef.current.goForward();
+    }
+  }, [activeTab]);
+
+  const reload = useCallback(() => {
+    if (activeTab?.webviewRef?.current) {
+      activeTab.webviewRef.current.reload();
+    }
+  }, [activeTab]);
+
   const rotateIdentity = useCallback(async (tabId) => {
     if (!window.aegisAPI) return;
     try {
@@ -260,6 +278,9 @@ function App() {
           activeTab={activeTab}
           onNavigate={navigateTo}
           urlBarRef={urlBarRef}
+          onBack={goBack}
+          onForward={goForward}
+          onReload={reload}
         />
       </div>
 
@@ -430,7 +451,7 @@ const tabBarStyles = {
 };
 
 // ── URL Bar ───────────────────────────────────────────────────
-function UrlBar({ activeTab, onNavigate, urlBarRef }) {
+function UrlBar({ activeTab, onNavigate, urlBarRef, onBack, onForward, onReload }) {
   const [inputValue, setInputValue] = useState('');
 
   useEffect(() => {
@@ -444,30 +465,51 @@ function UrlBar({ activeTab, onNavigate, urlBarRef }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} style={urlBarStyles.form}>
-      {/* Lock icon */}
-      <span style={urlBarStyles.icon}>🔒</span>
-      <input
-        ref={urlBarRef}
-        type="text"
-        value={inputValue}
-        onChange={e => setInputValue(e.target.value)}
-        onFocus={e => e.target.select()}
-        placeholder="Enter URL or search..."
-        style={urlBarStyles.input}
-      />
-      {activeTab?.loading && <span style={urlBarStyles.loadingIndicator}>⟳</span>}
-      <span style={urlBarStyles.aegisTag}>🛡️ AEGIS</span>
-    </form>
+    <div style={urlBarStyles.container}>
+      <div style={urlBarStyles.navButtons}>
+        <button onClick={onBack} style={urlBarStyles.navBtn} title="Back">◀</button>
+        <button onClick={onForward} style={urlBarStyles.navBtn} title="Forward">▶</button>
+        <button onClick={onReload} style={urlBarStyles.navBtn} title="Reload">⟳</button>
+      </div>
+      
+      <form onSubmit={handleSubmit} style={urlBarStyles.form}>
+        {/* Lock icon */}
+        <span style={urlBarStyles.icon}>🔒</span>
+        <input
+          ref={urlBarRef}
+          type="text"
+          value={inputValue}
+          onChange={e => setInputValue(e.target.value)}
+          onFocus={e => e.target.select()}
+          placeholder="Enter URL or search..."
+          style={urlBarStyles.input}
+        />
+        {activeTab?.loading && <span style={urlBarStyles.loadingIndicator}>⟳</span>}
+        <span style={urlBarStyles.aegisTag}>🛡️ AEGIS</span>
+      </form>
+    </div>
   );
 }
 
 const urlBarStyles = {
+  container: {
+    display:'flex', alignItems:'center', padding:'0 12px'
+  },
+  navButtons: {
+    display:'flex', gap:'4px', marginRight:'8px'
+  },
+  navBtn: {
+    background:'transparent', border:'none', color:'var(--text-secondary)',
+    cursor:'pointer', padding:'6px', borderRadius:'var(--radius-sm)',
+    fontSize:'14px', transition:'all 0.15s',
+    ':hover': { background:'var(--bg-elevated)', color:'var(--text-primary)' }
+  },
   form: {
     display:'flex', alignItems:'center', gap:'8px',
     padding:'6px 12px', background:'var(--bg-elevated)',
-    borderRadius:'var(--radius-md)', margin:'4px 12px',
-    border:'1px solid var(--border)', WebkitAppRegion:'no-drag'
+    borderRadius:'var(--radius-md)', margin:'4px 0',
+    border:'1px solid var(--border)', WebkitAppRegion:'no-drag',
+    flex: 1
   },
   icon: { fontSize:'12px', flexShrink:0 },
   input: {

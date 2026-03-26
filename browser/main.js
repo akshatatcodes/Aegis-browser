@@ -50,14 +50,18 @@ let mainWindow = null;
  */
 async function createWindow() {
   // ── Step 1: Configure session proxy ──────────────────────
-  // Apply to the DEFAULT session (shared by all webviews unless
-  // they specify a partition). Every webview in this app uses
-  // the default session, so this catches ALL traffic.
-  await session.defaultSession.setProxy({
+  // We apply the proxy to BOTH the default session and any 
+  // partitioned sessions (like 'persist:aegis' used by tabs).
+  const proxyConfig = {
     proxyRules: `socks5://${PROXY_HOST}:${PROXY_PORT}`,
-    // Bypass list: only localhost. Everything else goes through proxy.
     proxyBypassRules: '<local>'
-  });
+  };
+
+  await session.defaultSession.setProxy(proxyConfig);
+  
+  // Also apply to the specific partition used by our tabs
+  const aegisSession = session.fromPartition('persist:aegis');
+  await aegisSession.setProxy(proxyConfig);
 
   console.log(`[Aegis Main] Proxy configured → socks5://${PROXY_HOST}:${PROXY_PORT}`);
 

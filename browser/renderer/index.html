@@ -252,6 +252,27 @@
         updateTabUrl(activeTabId, fullUrl);
       }, [activeTabId, tabs, updateTabUrl]);
 
+      const goBack = useCallback(() => {
+        console.log('[Aegis UI] Navigating Back');
+        if (activeTab?.webviewRef?.current && activeTab.webviewRef.current.canGoBack()) {
+          activeTab.webviewRef.current.goBack();
+        }
+      }, [activeTab]);
+
+      const goForward = useCallback(() => {
+        console.log('[Aegis UI] Navigating Forward');
+        if (activeTab?.webviewRef?.current && activeTab.webviewRef.current.canGoForward()) {
+          activeTab.webviewRef.current.goForward();
+        }
+      }, [activeTab]);
+
+      const reload = useCallback(() => {
+        console.log('[Aegis UI] Reloading Page');
+        if (activeTab?.webviewRef?.current) {
+          activeTab.webviewRef.current.reload();
+        }
+      }, [activeTab]);
+
       const rotateIdentity = useCallback(async (tabId) => {
         if (!window.aegisAPI) return;
         try {
@@ -303,6 +324,9 @@
               activeTab={activeTab}
               onNavigate={navigateTo}
               urlBarRef={urlBarRef}
+              onBack={goBack}
+              onForward={goForward}
+              onReload={reload}
             />
           </div>
           <div style={styles.contentArea}>
@@ -398,20 +422,30 @@
       dashBtn: { background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px 8px', WebkitAppRegion: 'no-drag' }
     };
 
-    function UrlBar({ activeTab, onNavigate, urlBarRef }) {
+    function UrlBar({ activeTab, onNavigate, urlBarRef, onBack, onForward, onReload }) {
       const [inputValue, setInputValue] = useState('');
       useEffect(() => { setInputValue(activeTab?.url === 'aegis://new' ? '' : activeTab?.url || ''); }, [activeTab?.id, activeTab?.url]);
       return (
-        <form onSubmit={(e) => { e.preventDefault(); onNavigate(inputValue); }} style={urlBarStyles.form}>
-          <span style={urlBarStyles.icon}>🔒</span>
-          <input ref={urlBarRef} type="text" value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="Search or type URL" style={urlBarStyles.input} />
-          <span style={urlBarStyles.aegisTag}>🛡️ AEGIS</span>
-        </form>
+        <div style={urlBarStyles.container}>
+          <div style={urlBarStyles.navButtons}>
+            <button onClick={onBack} style={urlBarStyles.navBtn} title="Back">◀</button>
+            <button onClick={onForward} style={urlBarStyles.navBtn} title="Forward">▶</button>
+            <button onClick={onReload} style={urlBarStyles.navBtn} title="Reload">⟳</button>
+          </div>
+          <form onSubmit={(e) => { e.preventDefault(); onNavigate(inputValue); }} style={urlBarStyles.form}>
+            <span style={urlBarStyles.icon}>🔒</span>
+            <input ref={urlBarRef} type="text" value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="Search or type URL" style={urlBarStyles.input} />
+            <span style={urlBarStyles.aegisTag}>🛡️ AEGIS</span>
+          </form>
+        </div>
       );
     }
 
     const urlBarStyles = {
-      form: { display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', margin: '4px 12px', border: '1px solid var(--border)', WebkitAppRegion: 'no-drag' },
+      container: { display: 'flex', alignItems: 'center', padding: '0 12px' },
+      navButtons: { display: 'flex', gap: '4px', marginRight: '8px' },
+      navBtn: { background: 'var(--accent-dim)', border: '1px solid var(--border-accent)', color: 'var(--accent)', cursor: 'pointer', padding: '4px 10px', borderRadius: 'var(--radius-sm)', fontSize: '14px', fontWeight: 'bold' },
+      form: { flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', margin: '4px 0', border: '1px solid var(--border)', WebkitAppRegion: 'no-drag' },
       icon: { fontSize: '12px' },
       input: { flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: '13px' },
       aegisTag: { fontSize: '10px', color: 'var(--accent)', background: 'var(--accent-dim)', padding: '2px 6px', borderRadius: '10px', fontWeight: 600 }

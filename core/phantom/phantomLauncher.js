@@ -47,12 +47,13 @@ class PhantomLauncher {
    * Fires the phantom clones (mock implementation for Phase 5)
    */
   launch(destination, clones) {
-    console.log(`[Phantom] Obfuscating request to ${destination}...`);
+    console.log(`\n+---------------------------------------------------+`);
+    console.log(`| [PHANTOM] Obfuscating request to ${destination.padEnd(16)} |`);
+    console.log(`+---------------------------------------------------+`);
     
     clones.forEach((clone, index) => {
       setTimeout(() => {
-        console.log(`[Phantom] Clone ${index + 1} launched via Entry: ${clone.circuit.entry.region} (+${clone.delayMs}ms)`);
-        // In Phase 5, this just logs. In Phase 6+, this will send real encrypted mock-packets.
+        console.log(`  > [Clone ${index + 1}] Circuit Active via ${clone.circuit.entry.region}`);
       }, clone.delayMs);
     });
   }
