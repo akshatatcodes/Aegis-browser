@@ -35,6 +35,16 @@ const PORT = process.env.CORE_PORT || 3001;
 app.use(cors({ origin: '*' }));  // Electron app is same-machine
 app.use(express.json());
 
+const MOCK_NODES = [
+  { id: 'node-eu-1', role: 'guard',  region: 'EU-West',  ip: '185.23.44.12',  latencyMs: 28,  trustScore: 0.94, uptime: 99.1, flagged: false },
+  { id: 'node-us-1', role: 'guard',  region: 'US-East',  ip: '104.21.33.91',  latencyMs: 52,  trustScore: 0.91, uptime: 98.7, flagged: false },
+  { id: 'node-eu-2', role: 'relay',  region: 'EU-North', ip: '46.182.21.9',   latencyMs: 35,  trustScore: 0.88, uptime: 99.5, flagged: false },
+  { id: 'node-ap-1', role: 'relay',  region: 'AP-South', ip: '139.59.1.42',   latencyMs: 112, trustScore: 0.85, uptime: 97.2, flagged: false },
+  { id: 'node-sa-1', role: 'relay',  region: 'SA-East',  ip: '177.71.128.5',  latencyMs: 145, trustScore: 0.82, uptime: 96.8, flagged: false },
+  { id: 'node-ap-2', role: 'exit',   region: 'AP-East',  ip: '103.252.116.1', latencyMs: 88,  trustScore: 0.90, uptime: 98.3, flagged: false },
+  { id: 'node-eu-3', role: 'exit',   region: 'EU-South', ip: '5.180.64.88',   latencyMs: 42,  trustScore: 0.87, uptime: 98.9, flagged: false }
+];
+
 // ─── Helpers (stubs being phased out) ─────────────────────────
 
 function generateCircuit() {
@@ -250,7 +260,7 @@ app.use((req, res) => {
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`
 ╔══════════════════════════════════════╗
-║   AEGIS CORE API — Phase 1 Stub     ║
+║   AEGIS CORE API — Phase 2 Identity ║
 ║   Running on http://127.0.0.1:${PORT}  ║
 ║   Active sessions: 0                 ║
 ║   Nodes available: ${MOCK_NODES.length}                  ║
