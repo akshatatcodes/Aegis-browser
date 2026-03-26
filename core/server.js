@@ -1,21 +1,22 @@
 /**
  * ============================================================
- * AEGIS CORE — server.js (Phase 1 Backend API Stub)
+ * AEGIS CORE — server.js (Phase 3 Encryption & Proxy)
  * ============================================================
  *
- * ROLE: Express HTTP server that acts as the bridge between
- *       the Electron browser (main.js) and all core Aegis
- *       subsystems (encryption, routing, identity, phantom, etc.)
+ * ROLE: Express HTTP server + SOCKS5 Proxy Server.
+ *       Acts as the central architecture for Aegis.
  *
- * In Phase 1, this is a STUB — it returns realistic mock data
- * so the browser UI can be tested end-to-end before the real
- * routing/encryption engines are built in later phases.
+ * PHASE STATUS:
+ *   GET  /api/status          → Phase 3 Active
+ *   GET  /api/circuit/:tabId  → Phase 1 stub (mock circuit)
+ *   GET  /api/identity/:tabId → Phase 2 Active
+ *   POST /api/rotate-identity → Phase 2 Active
+ *   POST /api/rotate-route    → Phase 4 stub
+ *   GET  /api/nodes           → Phase 6 stub
  *
- * In Phase 2, the stubs get replaced with real module calls:
- *   const profileFactory = require('./identity/profileFactory');
- *   const sessionStore   = require('./identity/sessionStore');
- *
- * RUNS ON: http://localhost:3001
+ * PROXIES:
+ *   SOCKS5 Proxy runs on port 8118 (localProxy.js)
+ *   API Server runs on port 3001
  * ============================================================
  */
 
@@ -27,14 +28,16 @@ const { v4: uuidv4 } = require('uuid');
 
 const profileFactory = require('./identity/profileFactory');
 const sessionStore   = require('./identity/sessionStore');
+const localProxy     = require('./proxy/localProxy');
 
 const app  = express();
 const PORT = process.env.CORE_PORT || 3001;
 
 // ─── Middleware ───────────────────────────────────────────────
-app.use(cors({ origin: '*' }));  // Electron app is same-machine
+app.use(cors({ origin: '*' }));
 app.use(express.json());
 
+// ─── Mock Data (to be moved to Redis in Phase 6) ─────────────
 const MOCK_NODES = [
   { id: 'node-eu-1', role: 'guard',  region: 'EU-West',  ip: '185.23.44.12',  latencyMs: 28,  trustScore: 0.94, uptime: 99.1, flagged: false },
   { id: 'node-us-1', role: 'guard',  region: 'US-East',  ip: '104.21.33.91',  latencyMs: 52,  trustScore: 0.91, uptime: 98.7, flagged: false },
@@ -45,8 +48,7 @@ const MOCK_NODES = [
   { id: 'node-eu-3', role: 'exit',   region: 'EU-South', ip: '5.180.64.88',   latencyMs: 42,  trustScore: 0.87, uptime: 98.9, flagged: false }
 ];
 
-// ─── Helpers (stubs being phased out) ─────────────────────────
-
+// ─── Phase 1/4 Stubs ──────────────────────────────────────────
 function generateCircuit() {
   const guards  = MOCK_NODES.filter(n => n.role === 'guard');
   const relays  = MOCK_NODES.filter(n => n.role === 'relay');
@@ -65,190 +67,82 @@ function generateCircuit() {
   };
 }
 
-// ─── GET /api/status ──────────────────────────────────────────
-/**
- * Health check endpoint. Browser polls this every 30 seconds.
- * In Phase 4+: also reports routing brain status.
- * In Phase 6+: also reports active node count.
- */
+// ─── API Routes ───────────────────────────────────────────────
+
 app.get('/api/status', (req, res) => {
   res.json({
     status:         'ok',
-    version:        '1.0.0-phase1',
+    version:        '1.0.0-phase3',
     timestamp:      Date.now(),
     uptime:         process.uptime(),
     activeSessions: sessionStore.getStats().activeSessions,
     nodeCount:      MOCK_NODES.filter(n => !n.flagged).length,
-    phase:          2,
+    phase:          3,
     features: {
-      encryption:  false,  // Phase 3
-      realRouting: false,  // Phase 4
-      phantom:     false,  // Phase 5
-      mixNode:     false   // Phase 5.5
+      encryption:  true,
+      realRouting: false,
+      phantom:     false
     }
   });
 });
 
-// ─── GET /api/circuit/:tabId ──────────────────────────────────
-/**
- * Returns the current 3-hop circuit for a given tab.
- * Phase 1: Returns a random mock circuit from MOCK_NODES.
- * Phase 4: Will call routingBrain.js → circuitBuilder.js.
- */
 app.get('/api/circuit/:tabId', (req, res) => {
   const { tabId } = req.params;
-
   let session = sessionStore.get(tabId);
-
   if (!session) {
-    session = {
-      identity: profileFactory.createProfile(),
-      circuit:  generateCircuit()
-    };
+    session = { identity: profileFactory.createProfile(), circuit: generateCircuit() };
     sessionStore.set(tabId, session);
   }
-
-  // Auto-rotate if circuit expired
   if (Date.now() > session.circuit.expiresAt) {
     session.circuit = generateCircuit();
     sessionStore.set(tabId, session);
   }
-
   res.json(session.circuit);
 });
 
-// ─── GET /api/identity/:tabId ─────────────────────────────────
-/**
- * Returns the identity profile for a given tab.
- * Phase 2: Uses profileFactory.js and sessionStore.js.
- */
 app.get('/api/identity/:tabId', (req, res) => {
   const { tabId } = req.params;
-
   let session = sessionStore.get(tabId);
-
   if (!session) {
-    session = {
-      identity: profileFactory.createProfile(),
-      circuit:  generateCircuit()
-    };
+    session = { identity: profileFactory.createProfile(), circuit: generateCircuit() };
     sessionStore.set(tabId, session);
   }
-
-  // Auto-rotate if identity expired (45 min)
   if (Date.now() > session.identity.expiresAt) {
     session.identity = profileFactory.createProfile();
     sessionStore.set(tabId, session);
   }
-
-  // Sync timezone to circuit exit node (Phase 2 enhancement)
+  // Correlation Sync
   if (session.circuit && session.circuit.exit) {
-    // In a real app, mapping region to timezone would be more complex.
-    // For now, we use the circuit metadata.
     const regionToTz = {
-      'EU-West':  'Europe/London',
-      'US-East':  'America/New_York',
-      'EU-North': 'Europe/Berlin',
-      'AP-South': 'Asia/Kolkata',
-      'SA-East':  'America/Sao_Paulo',
-      'AP-East':  'Asia/Hong_Kong',
+      'EU-West': 'Europe/London', 'US-East': 'America/New_York', 'EU-North': 'Europe/Berlin',
+      'AP-South': 'Asia/Kolkata', 'SA-East': 'America/Sao_Paulo', 'AP-East': 'Asia/Hong_Kong',
       'EU-South': 'Europe/Rome'
     };
     session.identity.timezone = regionToTz[session.circuit.exit.region] || 'UTC';
   }
-
   res.json(session.identity);
 });
 
-// ─── POST /api/rotate-identity ────────────────────────────────
-/**
- * Force a new identity for a tab.
- * Args body: { tabId: string }
- * Phase 1: Generates a fresh random identity immediately.
- * Phase 2: Will call profileFactory.createProfile() with constraints.
- */
 app.post('/api/rotate-identity', (req, res) => {
   const { tabId } = req.body;
-
-  if (!tabId) {
-    return res.status(400).json({ error: 'tabId required' });
-  }
-
+  if (!tabId) return res.status(400).json({ error: 'tabId required' });
   const session = sessionStore.get(tabId) || { circuit: generateCircuit() };
   session.identity = profileFactory.createProfile();
-  
   sessionStore.set(tabId, session);
-
-  console.log(`[Core] Identity rotated for tab: ${tabId}`);
   res.json(session.identity);
 });
 
-// ─── POST /api/rotate-route ───────────────────────────────────
-/**
- * Force a new circuit for a tab.
- * Args body: { tabId: string }
- * Phase 1: Generates a fresh random circuit immediately.
- * Phase 4: Will call routingBrain.buildCircuit(tabId, destination).
- */
 app.post('/api/rotate-route', (req, res) => {
   const { tabId } = req.body;
-
-  if (!tabId) {
-    return res.status(400).json({ error: 'tabId required' });
-  }
-
+  if (!tabId) return res.status(400).json({ error: 'tabId required' });
   const session = sessionStore.get(tabId) || { identity: profileFactory.createProfile() };
   session.circuit = generateCircuit();
-  
   sessionStore.set(tabId, session);
-
-  console.log(`[Core] Circuit rotated for tab: ${tabId}`);
   res.json(session.circuit);
 });
 
-// ─── GET /api/nodes ───────────────────────────────────────────
-/**
- * Returns all known nodes and their health metrics.
- * Phase 1: Returns MOCK_NODES array.
- * Phase 6: Will call nodeRegistry.getAllNodes() from Redis.
- */
 app.get('/api/nodes', (req, res) => {
-  res.json({
-    nodes: MOCK_NODES,
-    total: MOCK_NODES.length,
-    active: MOCK_NODES.filter(n => !n.flagged).length,
-    timestamp: Date.now()
-  });
-});
-
-// ─── GET /api/detection ───────────────────────────────────────
-/**
- * Returns the latest detection test results.
- * Phase 1: Stub — returns placeholder data.
- * Phase 8: Will return results from fingerprintDetector.js + proxyDetector.js.
- */
-app.get('/api/detection', (req, res) => {
-  res.json({
-    lastRun:          null,
-    fingerprintScore: null,
-    trafficUniformity:null,
-    exitNodeClean:    null,
-    overallRisk:      'unknown',
-    message:          'Detection engine not yet active (Phase 8)'
-  });
-});
-
-// ─── POST /api/run-detection ──────────────────────────────────
-/**
- * Trigger a detection scan immediately.
- * Phase 1: Stub — responds with "scheduled" but does nothing.
- * Phase 8: Will call fingerprintDetector.run() etc.
- */
-app.post('/api/run-detection', (req, res) => {
-  res.json({
-    scheduled: true,
-    message: 'Detection engine not yet active (Phase 8)'
-  });
+  res.json({ nodes: MOCK_NODES, total: MOCK_NODES.length });
 });
 
 // ─── 404 Handler ─────────────────────────────────────────────
@@ -258,14 +152,14 @@ app.use((req, res) => {
 
 // ─── Start Server ─────────────────────────────────────────────
 app.listen(PORT, '127.0.0.1', () => {
+  localProxy.start();
   console.log(`
 ╔══════════════════════════════════════╗
-║   AEGIS CORE API — Phase 2 Identity ║
+║   AEGIS CORE API — Phase 3 Encryption ║
 ║   Running on http://127.0.0.1:${PORT}  ║
-║   Active sessions: 0                 ║
-║   Nodes available: ${MOCK_NODES.length}                  ║
+║   SOCKS5 Proxy: 127.0.0.1:8118       ║
 ╚══════════════════════════════════════╝
   `);
 });
 
-module.exports = app; // Export for testing
+module.exports = app;
