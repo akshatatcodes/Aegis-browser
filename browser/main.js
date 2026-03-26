@@ -34,7 +34,7 @@ const axios = require('axios');
 // ─── Constants ────────────────────────────────────────────────
 const PROXY_HOST = '127.0.0.1';
 const PROXY_PORT = process.env.LOCAL_PROXY_PORT || 8118;
-const CORE_API   = process.env.CORE_API_URL || 'http://localhost:3001';
+const CORE_API   = process.env.CORE_API_URL || 'http://127.0.0.1:3001';
 const IS_DEV     = process.argv.includes('--dev');
 
 // ─── Main Window Reference ────────────────────────────────────

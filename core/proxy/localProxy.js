@@ -64,27 +64,56 @@ class LocalProxy {
     const nodeRegistry = require('../network/nodeRegistry');
     const nodes = nodeRegistry.getAll();
     
+    let offset = 4;
+    let dstAddr = '';
+    const atyp = chunk[3];
+
+    if (atyp === 0x01) { // IPv4
+      dstAddr = chunk.slice(offset, offset + 4).join('.');
+      offset += 4;
+    } else if (atyp === 0x03) { // Domain
+      const len = chunk[offset];
+      dstAddr = chunk.slice(offset + 1, offset + 1 + len).toString();
+      offset += 1 + len;
+    } else if (atyp === 0x04) { // IPv6
+      dstAddr = chunk.slice(offset, offset + 16).toString('hex');
+      offset += 16;
+    }
+
+    const dstPort = chunk.readUInt16BE(offset);
+    
     // --- Phase 5: Throttled Phantom Obfuscation ---
+    // Rule: Only launch phantoms for primary HTTPS requests (443) to avoid spamming tracking pixels
     const now = Date.now();
     if (!this.phantomCooldowns) this.phantomCooldowns = new Map();
     const lastFired = this.phantomCooldowns.get(dstAddr) || 0;
 
-    if (now - lastFired > 30000) {
-      const clones = phantomLauncher.prepareClones(nodes, 3);
-      console.log(`\n[Aegis] 🛡️ OBfuscating: ${dstAddr}:${dstPort}`);
+    if (dstPort === 443 && now - lastFired > 60000) { // Increased cooldown to 60s
+      const clones = phantomLauncher.prepareClones(nodes, 2); // Reduced clone count to 2 for stability
+      console.log(`\n[Aegis] 🛡️ Obfuscating main request to: ${dstAddr}:${dstPort}`);
       phantomLauncher.launch(dstAddr, clones);
       this.phantomCooldowns.set(dstAddr, now);
     }
 
     // Connect to Remote
+    socket.pause(); // Pause browser data until remote is ready
     const remote = net.connect(dstPort, dstAddr, () => {
+      // 1. Send SOCKS5 Success Response
       socket.write(Buffer.from([0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0]));
-      socket.pipe(remote);
-      remote.pipe(socket);
+      
+      // 2. Start Encrypted/Mix Pipe
+      socket.resume();
+      this._pipeWithEncryption(socket, remote);
     });
 
-    remote.on('error', () => socket.end());
-    socket.on('error', () => remote.end());
+    remote.on('error', (err) => {
+      console.error(`[LocalProxy] ❌ Connection to ${dstAddr}:${dstPort} failed: ${err.message}`);
+      socket.destroy();
+    });
+
+    socket.on('error', (err) => {
+      remote.destroy();
+    });
     
     // Once in tunnel mode, we stop the 'data' listener for handshake logic
     socket.removeAllListeners('data');

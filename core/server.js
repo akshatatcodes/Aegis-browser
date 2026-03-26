@@ -139,16 +139,8 @@ app.use((req, res) => {
 
 // ─── Start Server ─────────────────────────────────────────────
 app.listen(PORT, '127.0.0.1', async () => {
-  localProxy.start();
-  console.log(`
-╔══════════════════════════════════════╗
-║   AEGIS CORE API — Phase 7 Network   ║
-║   Running on http://127.0.0.1:${PORT}  ║
-║   SOCKS5 Proxy: 127.0.0.1:8118       ║
-╚══════════════════════════════════════╝
-  `);
-
-  // Phase 7: Fetch initial consensus
+  console.log('[Aegis] API started. Initializing network consensus...');
+  
   const nodes = await directoryClient.fetchConsensus();
   if (nodes) {
     nodeRegistry.update(nodes);
@@ -156,6 +148,16 @@ app.listen(PORT, '127.0.0.1', async () => {
   } else {
     console.error('[Aegis] ❌ CRITICAL: Failed to load node consensus on startup.');
   }
+
+  localProxy.start();
+
+  console.log(`
+╔══════════════════════════════════════╗
+║   AEGIS CORE API — Phase 7 Network   ║
+║   Running on http://127.0.0.1:${PORT}  ║
+║   SOCKS5 Proxy: 127.0.0.1:8118       ║
+╚══════════════════════════════════════╝
+  `);
 });
 
 module.exports = app;

@@ -27,10 +27,16 @@ class SelfHealer {
   checkHealth() {
     const nodes = nodeRegistry.getAll();
     nodes.forEach(node => {
-      // Simulation: 5% chance a node "fails" health check
-      if (Math.random() < 0.05) {
+      // Simulation: 2% chance a node "fails" (reduced from 5%)
+      if (!node.flagged && Math.random() < 0.02) {
         node.flagged = true;
-        console.warn(`[Self-Healer] ⚠️  Node ${node.id} flagged for low reliability. Removing from routing.`);
+        console.warn(`[Self-Healer] ⚠️  Node ${node.id} flagged. Removing from routing.`);
+      }
+      
+      // Simulation: 10% chance a flagged node recovers
+      if (node.flagged && Math.random() < 0.10) {
+        node.flagged = false;
+        console.log(`[Self-Healer] ✅ Node ${node.id} recovered. Re-adding to pool.`);
       }
     });
   }

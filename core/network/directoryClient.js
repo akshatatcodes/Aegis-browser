@@ -16,7 +16,7 @@ const path = require('path');
 const DA_PUBLIC_KEY = fs.readFileSync(path.join(__dirname, '../../directory/da-public.pem'), 'utf8');
 
 class DirectoryClient {
-  constructor(daUrl = 'http://localhost:3002') {
+  constructor(daUrl = 'http://127.0.0.1:3002') {
     this.daUrl = daUrl;
   }
 

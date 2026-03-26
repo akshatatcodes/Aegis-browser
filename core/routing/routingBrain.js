@@ -18,9 +18,12 @@ class RoutingBrain {
   /**
    * Generates a new 3-hop circuit for a session
    */
-  generateCircuit() {
+  generateCircuit(manualNodes) {
     const nodeRegistry = require('../network/nodeRegistry');
-    const nodes = nodeRegistry.getAll();
+    const nodes = manualNodes || nodeRegistry.getAll();
+    if (!nodes || nodes.length === 0) {
+      throw new Error('No nodes available in registry');
+    }
     const path = circuitBuilder.buildCircuit(nodes);
 
     return {
