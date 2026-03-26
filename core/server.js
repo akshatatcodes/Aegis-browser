@@ -59,16 +59,16 @@ function generateCircuit() {
 app.get('/api/status', (req, res) => {
   res.json({
     status:         'ok',
-    version:        '1.0.0-phase4',
+    version:        '1.0.0-phase5',
     timestamp:      Date.now(),
     uptime:         process.uptime(),
     activeSessions: sessionStore.getStats().activeSessions,
     nodeCount:      MOCK_NODES.filter(n => !n.flagged).length,
-    phase:          4,
+    phase:          5,
     features: {
       encryption:  true,
-      realRouting: true, // Phase 4 ACTIVE
-      phantom:     false
+      realRouting: true,
+      phantom:     true  // Phase 5 ACTIVE
     }
   });
 });
@@ -142,7 +142,7 @@ app.listen(PORT, '127.0.0.1', () => {
   localProxy.start();
   console.log(`
 ╔══════════════════════════════════════╗
-║   AEGIS CORE API — Phase 3 Encryption ║
+║   AEGIS CORE API — Phase 5 Phantoms  ║
 ║   Running on http://127.0.0.1:${PORT}  ║
 ║   SOCKS5 Proxy: 127.0.0.1:8118       ║
 ╚══════════════════════════════════════╝

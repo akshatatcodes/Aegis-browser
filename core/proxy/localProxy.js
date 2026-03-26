@@ -11,6 +11,7 @@
 const net = require('net');
 const onionCipher = require('../encryption/onionCipher');
 const sessionStore = require('../identity/sessionStore');
+const phantomLauncher = require('../phantom/phantomLauncher');
 
 class LocalProxy {
   constructor(port = 8118) {
@@ -69,11 +70,20 @@ class LocalProxy {
 
         dstPort = chunk.readUInt16BE(offset);
 
-        // console.log(`[LocalProxy] CONNECT ${dstAddr}:${dstPort}`);
-
-        // In Phase 3: We pretend to connect, but wrap outgoing traffic
-        // In reality, Phase 3 just forwards to verify the encryption pipe.
-        // We'll connect to the destination directly but pass through the cipher.
+        // Phase 5: Trigger Phantom Clones for this destination
+        // We use a mock node list for now (Phase 6 will use the real registry)
+        const MOCK_NODES = [
+          { id: 'node-eu-1', role: 'guard',  region: 'EU-West',  ip: '185.23.44.12',  latencyMs: 28,  trustScore: 0.94, uptime: 99.1, flagged: false },
+          { id: 'node-us-1', role: 'guard',  region: 'US-East',  ip: '104.21.33.91',  latencyMs: 52,  trustScore: 0.91, uptime: 98.7, flagged: false },
+          { id: 'node-eu-2', role: 'relay',  region: 'EU-North', ip: '46.182.21.9',   latencyMs: 35,  trustScore: 0.88, uptime: 99.5, flagged: false },
+          { id: 'node-ap-1', role: 'relay',  region: 'AP-South', ip: '139.59.1.42',   latencyMs: 112, trustScore: 0.85, uptime: 97.2, flagged: false },
+          { id: 'node-sa-1', role: 'relay',  region: 'SA-East',  ip: '177.71.128.5',  latencyMs: 145, trustScore: 0.82, uptime: 96.8, flagged: false },
+          { id: 'node-ap-2', role: 'exit',   region: 'AP-East',  ip: '103.252.116.1', latencyMs: 88,  trustScore: 0.90, uptime: 98.3, flagged: false },
+          { id: 'node-eu-3', role: 'exit',   region: 'EU-South', ip: '5.180.64.88',   latencyMs: 42,  trustScore: 0.87, uptime: 98.9, flagged: false }
+        ];
+        
+        const clones = phantomLauncher.prepareClones(MOCK_NODES, Math.floor(Math.random() * 3) + 3);
+        phantomLauncher.launch(dstAddr, clones);
 
         const remote = net.connect(dstPort, dstAddr, () => {
           // Success: [VER, REP, RSV, ATYP, BND.ADDR, BND.PORT]
