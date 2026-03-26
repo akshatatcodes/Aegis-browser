@@ -12,7 +12,7 @@
  *   GET  /api/identity/:tabId → Phase 2 Active
  *   POST /api/rotate-identity → Phase 2 Active
  *   POST /api/rotate-route    → Phase 4 stub
- *   GET  /api/nodes           → Phase 6 stub
+ *   GET  /api/nodes           → Phase 7 Active
  *
  * PROXIES:
  *   SOCKS5 Proxy runs on port 8118 (localProxy.js)
@@ -31,6 +31,13 @@ const sessionStore   = require('./identity/sessionStore');
 const localProxy     = require('./proxy/localProxy');
 const routingBrain   = require('./routing/routingBrain');
 
+// Phase 7 Network Modules
+const DirectoryClient = require('./network/directoryClient');
+const nodeRegistry    = require('./network/nodeRegistry');
+const selfHealer      = require('./network/selfHealer');
+
+const directoryClient = new DirectoryClient();
+
 const app  = express();
 const PORT = process.env.CORE_PORT || 3001;
 
@@ -38,20 +45,10 @@ const PORT = process.env.CORE_PORT || 3001;
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
-// ─── Mock Data (to be moved to Redis in Phase 6) ─────────────
-const MOCK_NODES = [
-  { id: 'node-eu-1', role: 'guard',  region: 'EU-West',  ip: '185.23.44.12',  latencyMs: 28,  trustScore: 0.94, uptime: 99.1, flagged: false },
-  { id: 'node-us-1', role: 'guard',  region: 'US-East',  ip: '104.21.33.91',  latencyMs: 52,  trustScore: 0.91, uptime: 98.7, flagged: false },
-  { id: 'node-eu-2', role: 'relay',  region: 'EU-North', ip: '46.182.21.9',   latencyMs: 35,  trustScore: 0.88, uptime: 99.5, flagged: false },
-  { id: 'node-ap-1', role: 'relay',  region: 'AP-South', ip: '139.59.1.42',   latencyMs: 112, trustScore: 0.85, uptime: 97.2, flagged: false },
-  { id: 'node-sa-1', role: 'relay',  region: 'SA-East',  ip: '177.71.128.5',  latencyMs: 145, trustScore: 0.82, uptime: 96.8, flagged: false },
-  { id: 'node-ap-2', role: 'exit',   region: 'AP-East',  ip: '103.252.116.1', latencyMs: 88,  trustScore: 0.90, uptime: 98.3, flagged: false },
-  { id: 'node-eu-3', role: 'exit',   region: 'EU-South', ip: '5.180.64.88',   latencyMs: 42,  trustScore: 0.87, uptime: 98.9, flagged: false }
-];
 
 // ─── Phase 4 Logic ──────────────────────────────────────────
 function generateCircuit() {
-  return routingBrain.generateCircuit(MOCK_NODES);
+  return routingBrain.generateCircuit();
 }
 
 // ─── API Routes ───────────────────────────────────────────────
@@ -63,12 +60,14 @@ app.get('/api/status', (req, res) => {
     timestamp:      Date.now(),
     uptime:         process.uptime(),
     activeSessions: sessionStore.getStats().activeSessions,
-    nodeCount:      MOCK_NODES.filter(n => !n.flagged).length,
-    phase:          5,
+    nodeCount:      nodeRegistry.getNodesByRole('guard').length + nodeRegistry.getNodesByRole('relay').length + nodeRegistry.getNodesByRole('exit').length,
+    phase:          7,
     features: {
       encryption:  true,
       realRouting: true,
-      phantom:     true  // Phase 5 ACTIVE
+      phantom:     true,
+      mixNode:     true,
+      dynamicNet:  true  // Phase 7 ACTIVE
     }
   });
 });
@@ -129,7 +128,8 @@ app.post('/api/rotate-route', (req, res) => {
 });
 
 app.get('/api/nodes', (req, res) => {
-  res.json({ nodes: MOCK_NODES, total: MOCK_NODES.length });
+  const nodes = nodeRegistry.getAll();
+  res.json({ nodes, total: nodes.length });
 });
 
 // ─── 404 Handler ─────────────────────────────────────────────
@@ -138,15 +138,24 @@ app.use((req, res) => {
 });
 
 // ─── Start Server ─────────────────────────────────────────────
-app.listen(PORT, '127.0.0.1', () => {
+app.listen(PORT, '127.0.0.1', async () => {
   localProxy.start();
   console.log(`
 ╔══════════════════════════════════════╗
-║   AEGIS CORE API — Phase 5 Phantoms  ║
+║   AEGIS CORE API — Phase 7 Network   ║
 ║   Running on http://127.0.0.1:${PORT}  ║
 ║   SOCKS5 Proxy: 127.0.0.1:8118       ║
 ╚══════════════════════════════════════╝
   `);
+
+  // Phase 7: Fetch initial consensus
+  const nodes = await directoryClient.fetchConsensus();
+  if (nodes) {
+    nodeRegistry.update(nodes);
+    selfHealer.start();
+  } else {
+    console.error('[Aegis] ❌ CRITICAL: Failed to load node consensus on startup.');
+  }
 });
 
 module.exports = app;

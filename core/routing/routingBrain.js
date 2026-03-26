@@ -18,7 +18,9 @@ class RoutingBrain {
   /**
    * Generates a new 3-hop circuit for a session
    */
-  generateCircuit(nodes) {
+  generateCircuit() {
+    const nodeRegistry = require('../network/nodeRegistry');
+    const nodes = nodeRegistry.getAll();
     const path = circuitBuilder.buildCircuit(nodes);
 
     return {
